@@ -15,6 +15,8 @@ This is a simple web application that allows users to record audio using their d
 - Allows playback of recorded audio files directly in the browser.
 - Allows deletion of recorded audio files from the browser.
 - Stores recorded audio files on the server.
+- Transcribes recorded audio files to text using Vosk.
+- Allows searching for keywords in transcriptions and returns timestamps of occurrences.
 
 ## Installation
 
@@ -26,9 +28,21 @@ This is a simple web application that allows users to record audio using their d
     ```sh
     cd dictaphone-web-app
     ```
-3. Install the necessary dependencies:
+3. Install the necessary Node.js dependencies:
     ```sh
     npm install
+    ```
+4. Install the necessary Python dependencies:
+    ```sh
+    pip install vosk soundfile pydub
+    ```
+5. Download the French language model for Vosk from [the official site](https://alphacephei.com/vosk/models) and extract it to a directory of your choice. Update the path to the model in the `transcribe.py` script.
+
+6. Generate SSL certificates (for development purposes):
+    ```sh
+    openssl genrsa -out key.pem 2048
+    openssl req -new -key key.pem -out csr.pem
+    openssl x509 -req -days 365 -in csr.pem -signkey key.pem -out cert.pem
     ```
 
 ## Usage
@@ -37,16 +51,25 @@ This is a simple web application that allows users to record audio using their d
     ```sh
     node server.js
     ```
-2. Open your web browser and navigate to `http://localhost:3000`.
+2. Open your web browser and navigate to `http://localhost:3000` for HTTP or `https://localhost:3443` for HTTPS (if SSL certificates are available).
 3. The application will start recording automatically when the average audio level exceeds 70.
 4. Click the "Stop Recording" button to manually stop the recording and start a new one.
 5. View the recorded audio files in the table, play them back, and delete them directly in the browser.
+6. Click the "Transcribe" button to transcribe the recorded audio file. The status of the transcription will be displayed.
+7. Use the `/search` endpoint to search for keywords in transcriptions and get the timestamps of occurrences. For example:
+    ```
+    GET /search?keyword=bonjour
+    ```
 
 ## Dependencies
 
 - Node.js
 - Express
 - Multer
+- Python
+- Vosk
+- Soundfile
+- Pydub
 
 ## License
 

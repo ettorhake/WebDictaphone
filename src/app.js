@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let audioChunks = [];
     let silenceTimeout;
     const startThreshold = 70; // Threshold to start recording
-    const silenceDuration = 10000; // Duration of silence to stop recording (10 seconds)
+    const silenceDuration = 5000; // Duration of silence to stop recording (5 seconds)
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
     mediaRecorder.ondataavailable = event => {
         audioChunks.push(event.data);
@@ -28,10 +28,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const saveRecording = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const formData = new FormData();
-        formData.append('audio', audioBlob, `recording-${timestamp}.mp3`);
+        formData.append('audio', audioBlob, `recording-${timestamp}.webm`);
 
         const response = await fetch('/upload', {
             method: 'POST',
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const audioUrl = result.filePath;
         const a = document.createElement('a');
         a.href = audioUrl;
-        a.download = `recording-${timestamp}.mp3`;
+        a.download = `recording-${timestamp}.webm`;
         a.textContent = `Recording from ${timestamp}`;
 
         const audio = document.createElement('audio');
@@ -56,6 +56,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.remove();
         });
 
+        const transcribeButton = document.createElement('button');
+        transcribeButton.textContent = 'Transcribe';
+        const transcriptionStatus = document.createElement('span');
+        transcriptionStatus.textContent = 'Not started';
+        transcribeButton.addEventListener('click', async () => {
+            transcriptionStatus.textContent = 'In progress...';
+            const transcribeResponse = await fetch(`/transcribe?filename=${result.filePath}`);
+            const transcribeResult = await transcribeResponse.json();
+            if (transcribeResult.success) {
+                transcriptionStatus.textContent = 'Completed';
+            } else {
+                transcriptionStatus.textContent = 'Failed';
+            }
+        });
+
         const li = document.createElement('li');
         li.appendChild(a);
         li.appendChild(audio);
@@ -64,12 +79,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tdDate = document.createElement('td');
         const tdRecording = document.createElement('td');
         const tdAction = document.createElement('td');
+        const tdStatus = document.createElement('td');
         tdDate.textContent = new Date().toLocaleString('fr-FR');
         tdRecording.appendChild(li);
         tdAction.appendChild(deleteButton);
+        tdAction.appendChild(transcribeButton);
+        tdStatus.appendChild(transcriptionStatus);
         tr.appendChild(tdDate);
         tr.appendChild(tdRecording);
         tr.appendChild(tdAction);
+        tr.appendChild(tdStatus);
         recordingsList.appendChild(tr);
 
         audioChunks = [];
@@ -143,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 silenceTimeout = setTimeout(() => {
                     stopRecording();
                     silenceTimeout = null;
-                }, silenceDuration); // Stop recording after 10 seconds of silence
+                }, silenceDuration); // Stop recording after 5 seconds of silence
             }
         } else if (!isSilent) {
             clearTimeout(silenceTimeout);

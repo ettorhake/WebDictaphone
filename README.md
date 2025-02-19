@@ -23,9 +23,10 @@ Web Dictaphone est une application web qui permet d'enregistrer des fichiers aud
 
 git clone https://github.com/ettorhake/WebDictaphone.git
 cd WebDictaphone
-python server.py
 pip install flask whisper pydub
 npm install
+python server.py
+
 ```
 ```
 

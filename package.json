@@ -1,0 +1,15 @@
+{
+    "name": "webdictaphone",
+    "version": "1.0.0",
+    "description": "Web Dictaphone est une application web qui permet d'enregistrer des fichiers audio, de les transcrire et de les gérer via une interface utilisateur.",
+    "main": "app.js",
+    "scripts": {
+      "start": "node app.js"
+    },
+    "author": "ettorhake",
+    "license": "MIT",
+    "dependencies": {
+      "express": "^4.17.1",
+      "multer": "^1.4.2"
+    }
+  }

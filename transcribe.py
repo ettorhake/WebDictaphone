@@ -2,12 +2,16 @@ import sys
 import json
 import os
 import logging
-from vosk import Model, KaldiRecognizer
+import whisper
 from pydub import AudioSegment
 from pydub.utils import which
+from database import add_recording, init_db
 
 # Configurer le journalisation
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Initialiser la base de données
+init_db()
 
 # Spécifiez le chemin de ffmpeg et ffprobe si nécessaire
 ffmpeg_path = which("ffmpeg") or "C:/path/to/ffmpeg/bin/ffmpeg.exe"
@@ -16,16 +20,14 @@ AudioSegment.converter = ffmpeg_path
 AudioSegment.ffmpeg = ffmpeg_path
 AudioSegment.ffprobe = ffprobe_path
 
-def transcribe_audio(file_path):
+def transcribe_audio(file_path, output_path):
     logging.debug(f'Transcription du fichier audio : {file_path}')
     
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, "src/vosk-model-small-fr-0.22/")
-    logging.debug(f'Chemin du modèle : {model_path}')
-    
-    model = Model(model_path)
+    # Charger le modèle Whisper
+    model = whisper.load_model("base")
+    logging.debug('Modèle Whisper chargé.')
 
-    # Charger le fichier WebM en utilisant pydub avec des options ffmpeg supplémentaires
+    # Charger le fichier audio en utilisant pydub
     audio = AudioSegment.from_file(file_path, format="webm", parameters=["-analyzeduration", "100M", "-probesize", "100M"])
     logging.debug('Audio chargé avec succès.')
     
@@ -33,30 +35,33 @@ def transcribe_audio(file_path):
     audio = audio.set_frame_rate(16000)  # Assurer un taux d'échantillonnage de 16 kHz
     logging.debug('Format audio modifié pour être mono et 16 kHz.')
     
-    # Convertir AudioSegment en données audio brutes
-    raw_audio = audio.raw_data
-    logging.debug('Données audio brutes obtenues.')
+    # Exporter l'audio en format WAV pour Whisper
+    temp_wav_path = "temp_audio.wav"
+    audio.export(temp_wav_path, format="wav")
+    logging.debug('Audio exporté en format WAV.')
 
-    rec = KaldiRecognizer(model, 16000)
-    logging.debug('Reconnaissance Kaldi initialisée.')
-
-    results = []
-    if rec.AcceptWaveform(raw_audio):
-        result = json.loads(rec.Result())
-        results.append(result)
-        logging.debug(f'Résultat de la reconnaissance : {result}')
-    else:
-        logging.warning('La reconnaissance n\'a pas pu être effectuée sur toute la forme d\'onde.')
-
-    final_result = json.loads(rec.FinalResult())
-    results.append(final_result)
-    logging.debug(f'Résultat final de la reconnaissance : {final_result}')
+    # Transcrire l'audio avec Whisper
+    result = model.transcribe(temp_wav_path, language="fr")
+    logging.debug(f'Résultat de la transcription : {result["text"]}')
     
-    return results
+    # Écrire la transcription dans un fichier de sortie
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=4)
+    logging.debug(f'Transcription écrite dans le fichier : {output_path}')
+
+    # Ajouter l'enregistrement à la base de données
+    timestamp = os.path.basename(file_path).split('-')[1]
+    add_recording(file_path, timestamp, result["text"])
+
+    return result
 
 if __name__ == "__main__":
-    file_path = sys.argv[1]
-    logging.debug(f'Début de la transcription pour le fichier : {file_path}')
-    transcription = transcribe_audio(file_path)
-    print(json.dumps(transcription, ensure_ascii=False))
-    logging.debug('Transcription terminée.')
+    if len(sys.argv) != 3:
+        print("Usage: python script.py <audio_file_path> <output_file_path>")
+    else:
+        file_path = sys.argv[1]
+        output_path = sys.argv[2]
+        logging.debug(f'Début de la transcription pour le fichier : {file_path}')
+        transcription = transcribe_audio(file_path, output_path)
+        print(json.dumps(transcription, ensure_ascii=False))
+        logging.debug('Transcription terminée.')

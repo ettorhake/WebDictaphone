@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
-from database import get_recordings, delete_recording, init_db, add_recording
+from database import get_recordings, delete_recording, init_db, add_recording, update_transcription
 import os
 import logging
 from datetime import datetime
@@ -60,6 +60,24 @@ def upload_recording():
 @app.route('/uploads/<filename>', methods=['GET'])
 def serve_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/transcribe', methods=['GET'])
+def transcribe_recording():
+    filename = request.args.get('filename')
+    if not filename:
+        return jsonify(success=False, message='No filename provided'), 400
+
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(file_path):
+        return jsonify(success=False, message='File not found'), 404
+
+    # Simuler la transcription (vous pouvez remplacer cette partie par votre propre logique de transcription)
+    transcription = f"Transcription of {filename}"
+
+    # Mettre à jour la base de données avec la transcription
+    update_transcription(filename, transcription)
+
+    return jsonify(success=True, transcription=transcription)
 
 if __name__ == '__main__':
     cert_path = '/etc/letsencrypt/live/rec.lauzesjulien.com/fullchain.pem'

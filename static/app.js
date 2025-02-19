@@ -230,9 +230,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const transcribeResult = await transcribeResponse.json();
                 if (transcribeResult.success) {
                     transcriptionStatus.textContent = 'Completed';
+                    transcriptionModalContent.textContent = transcribeResult.transcription;
                 } else {
                     transcriptionStatus.textContent = 'Failed';
                 }
+            });
+
+            const viewTranscriptionButton = document.createElement('button');
+            viewTranscriptionButton.textContent = 'View Transcription';
+            viewTranscriptionButton.addEventListener('click', () => {
+                transcriptionModalContent.textContent = transcription || 'No transcription available';
+                transcriptionModal.style.display = 'block';
             });
 
             const li = document.createElement('li');
@@ -249,6 +257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tdRecording.appendChild(li);
             tdAction.appendChild(deleteButton);
             tdAction.appendChild(transcribeButton);
+            tdAction.appendChild(viewTranscriptionButton);
             tdStatus.appendChild(transcriptionStatus);
             tdIp.textContent = client_ip;
             tr.appendChild(tdDate);
@@ -261,4 +270,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     fetchRecordings();
+
+    // Modal for transcription
+    const transcriptionModal = document.createElement('div');
+    transcriptionModal.style.display = 'none';
+    transcriptionModal.style.position = 'fixed';
+    transcriptionModal.style.zIndex = '1';
+    transcriptionModal.style.left = '0';
+    transcriptionModal.style.top = '0';
+    transcriptionModal.style.width = '100%';
+    transcriptionModal.style.height = '100%';
+    transcriptionModal.style.overflow = 'auto';
+    transcriptionModal.style.backgroundColor = 'rgb(0,0,0)';
+    transcriptionModal.style.backgroundColor = 'rgba(0,0,0,0.4)';
+
+    const transcriptionModalContent = document.createElement('div');
+    transcriptionModalContent.style.backgroundColor = '#fefefe';
+    transcriptionModalContent.style.margin = '15% auto';
+    transcriptionModalContent.style.padding = '20px';
+    transcriptionModalContent.style.border = '1px solid #888';
+    transcriptionModalContent.style.width = '80%';
+
+    const closeModalButton = document.createElement('span');
+    closeModalButton.style.color = '#aaa';
+    closeModalButton.style.float = 'right';
+    closeModalButton.style.fontSize = '28px';
+    closeModalButton.style.fontWeight = 'bold';
+    closeModalButton.innerHTML = '&times;';
+    closeModalButton.onclick = () => {
+        transcriptionModal.style.display = 'none';
+    };
+
+    transcriptionModalContent.appendChild(closeModalButton);
+    transcriptionModal.appendChild(transcriptionModalContent);
+    document.body.appendChild(transcriptionModal);
 });

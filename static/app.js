@@ -22,56 +22,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         recorderStateDisplay.textContent = `State: ${mediaRecorder.state}`;
     };
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
         recorderStateDisplay.textContent = `State: ${mediaRecorder.state}`;
-        saveRecording();
+        await saveRecording();
     };
 
     const saveRecording = async () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const recording = {
-            id: `recording-${timestamp}`,
-            blob: audioBlob,
-            timestamp: timestamp
-        };
+        if (audioBlob.size > 0) { // Vérifier la taille du fichier avant de l'enregistrer
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const recording = {
+                id: `recording-${timestamp}`,
+                blob: audioBlob,
+                timestamp: timestamp
+            };
 
-        // Save recording locally
-        saveRecordingLocally(recording);
+            // Uploader le fichier directement
+            await uploadRecording(recording);
 
-        // Try to sync with server
-        syncWithServer();
+            // Save recording locally
+            saveRecordingLocally(recording);
 
-        audioChunks = [];
+            audioChunks = [];
+        } else {
+            console.log('Recording is empty, not saving.');
+        }
     };
 
     const saveRecordingLocally = (recording) => {
         const recordings = JSON.parse(localStorage.getItem('recordings')) || [];
-        recordings.push(recording);
+        // Convert Blob to a serializable format
+        const serializedRecording = {
+            ...recording,
+            blob: recording.blob ? URL.createObjectURL(recording.blob) : null
+        };
+        recordings.push(serializedRecording);
         localStorage.setItem('recordings', JSON.stringify(recordings));
+        console.log('Recording saved locally:', serializedRecording);
+    };
+
+    const uploadRecording = async (recording) => {
+        const formData = new FormData();
+        formData.append('audio', recording.blob, `${recording.id}.webm`);
+
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                console.log('Recording uploaded to server:', recording);
+            } else {
+                console.error('Failed to upload recording to server.');
+            }
+        } catch (error) {
+            console.error('Failed to upload recording to server:', error);
+        }
     };
 
     const syncWithServer = async () => {
-        if (navigator.onLine) {
-            const recordings = JSON.parse(localStorage.getItem('recordings')) || [];
-            for (const recording of recordings) {
-                const formData = new FormData();
-                formData.append('audio', recording.blob, `${recording.id}.webm`);
+        const recordings = JSON.parse(localStorage.getItem('recordings')) || [];
+        for (const recording of recordings) {
+            const response = await fetch(recording.blob);
+            const blob = await response.blob();
+            const formData = new FormData();
+            formData.append('audio', blob, `${recording.id}.webm`);
 
-                try {
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
 
-                    if (response.ok) {
-                        // Remove recording from local storage
-                        const updatedRecordings = recordings.filter(r => r.id !== recording.id);
-                        localStorage.setItem('recordings', JSON.stringify(updatedRecordings));
-                    }
-                } catch (error) {
-                    console.error('Failed to sync recording with server:', error);
+                if (response.ok) {
+                    console.log('Recording synced with server:', recording);
+                    // Remove recording from local storage
+                    const updatedRecordings = recordings.filter(r => r.id !== recording.id);
+                    localStorage.setItem('recordings', JSON.stringify(updatedRecordings));
+                } else {
+                    console.error('Failed to sync recording with server.');
                 }
+            } catch (error) {
+                console.error('Failed to sync recording with server:', error);
             }
         }
     };
@@ -164,21 +197,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Sync with server when online
     window.addEventListener('online', syncWithServer);
 
-    // Fetch and display existing recordings from the database
     const fetchRecordings = async () => {
         const response = await fetch('/recordings');
         const recordings = await response.json();
+        console.log('Recordings fetched from server:', recordings);
         recordings.forEach(recording => {
-            const { id, filename, timestamp, transcription } = recording;
+            const { id, filename, timestamp, client_ip, transcription } = recording;
 
             const a = document.createElement('a');
-            a.href = filename;
+            a.href = `/uploads/${filename}`;
             a.download = filename;
             a.textContent = `Recording from ${timestamp}`;
 
             const audio = document.createElement('audio');
             audio.controls = true;
-            audio.src = filename;
+            audio.src = `/uploads/${filename}`;
 
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
@@ -211,15 +244,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tdRecording = document.createElement('td');
             const tdAction = document.createElement('td');
             const tdStatus = document.createElement('td');
+            const tdIp = document.createElement('td');
             tdDate.textContent = new Date(timestamp).toLocaleString('fr-FR');
             tdRecording.appendChild(li);
             tdAction.appendChild(deleteButton);
             tdAction.appendChild(transcribeButton);
             tdStatus.appendChild(transcriptionStatus);
+            tdIp.textContent = client_ip;
             tr.appendChild(tdDate);
             tr.appendChild(tdRecording);
             tr.appendChild(tdAction);
             tr.appendChild(tdStatus);
+            tr.appendChild(tdIp);
             recordingsList.appendChild(tr);
         });
     };
